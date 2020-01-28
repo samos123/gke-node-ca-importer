@@ -67,7 +67,7 @@ spec:
     spec:
       hostNetwork: true
       hostPID: true
-      containers:
+      initContainers:
       - name: cert-customizations
         image: gcr.io/gsam-123/custom-cert
         volumeMounts:
@@ -81,6 +81,9 @@ spec:
       - name: etc
         hostPath:
           path: /etc
+      containers:
+      - name: pause
+        image: gcr.io/google_containers/pause
 ```
 Now apply with `kubectl apply -f daemonset.yaml`.
 
