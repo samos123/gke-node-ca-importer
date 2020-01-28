@@ -1,0 +1,31 @@
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: cert-customizations
+  labels:
+    app: cert-customizations
+spec:
+  selector:
+    matchLabels:
+      app: cert-customizations
+  template:
+    metadata:
+      labels:
+        app: cert-customizations
+    spec:
+      hostNetwork: true
+      hostPID: true
+      containers:
+      - name: cert-customizations
+        image: gcr.io/gsam-123/custom-cert
+        volumeMounts:
+          - name: etc
+            mountPath: "/mnt/etc"
+        securityContext:
+          privileged: true
+          capabilities:
+            add: ["NET_ADMIN"]
+      volumes:
+      - name: etc
+        hostPath:
+          path: /etc
