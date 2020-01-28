@@ -69,7 +69,7 @@ spec:
       hostPID: true
       initContainers:
       - name: cert-customizations
-        image: gcr.io/gsam-123/custom-cert
+        image: gcr.io/$PROJECT_ID/custom-cert
         volumeMounts:
           - name: etc
             mountPath: "/mnt/etc"
