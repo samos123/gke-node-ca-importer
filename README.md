@@ -34,8 +34,11 @@ This is the script `insert-ca.sh` that will be used in the Docker image:
 #!/bin/bash
 
 cp /myCA.pem /mnt/etc/ssl/certs
+
 nsenter --target 1 --mount update-ca-certificates
-nsenter --target 1 --mount systemctl restart docker
+
+nsenter --target 1 --mount bash -c "systemctl is-active --quiet docker && systemctl restart docker"
+nsenter --target 1 --mount bash -c "systemctl is-active --quiet containerd && systemctl restart containerd"
 ```
 Now build and push the image to GCR:
 ```
