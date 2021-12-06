@@ -1,9 +1,4 @@
-# Customizing GKE COS nodes
-This repository contains customizations possible on GKE COS nodes.
-
-
-
-## Using self-signed docker registry
+# GKE self-signed docker registry: Node CA importer
 Let's assume your company has a private CA that's not trusted by default.
 All internal services such as on-prem docker registry have their certs signed
 by this private CA. This would cause GKE to prevent pulling from the on-prem
