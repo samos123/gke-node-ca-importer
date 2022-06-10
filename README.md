@@ -1,4 +1,5 @@
 # GKE self-signed docker registry: Node CA importer
+This repo provides helper func
 Let's assume your company has a private CA that's not trusted by default.
 All internal services such as on-prem docker registry have their certs signed
 by this private CA. This would cause GKE to prevent pulling from the on-prem
@@ -101,9 +102,11 @@ openssl req -x509 -new -nodes -key myCA.key -sha256 -days 1825 -out myCA.pem # p
 Create a cert for docker registry
 ```
 openssl genrsa -out registry.samos-it.com.key 2048
+openssl req -new -key registry.samos-it.com.key -out registry.samos-it.com.csr-subj "/CN=registry.samos-it.com" \
+    -addext "subjectAltName = DNS:registry.samos-it.com"
 openssl req -new -key registry.samos-it.com.key -out registry.samos-it.com.csr
 openssl x509 -req -in registry.samos-it.com.csr -CA myCA.pem -CAkey myCA.key -CAcreateserial \
-  -out registry.samos-it.com.crt -days 1825 -sha256 -extfile registry.samos-it.com.ext
+  -out registry.samos-it.com.crt -days 1825 -sha256 -extfile <(printf "subjectAltName=DNS:registry.samos-it.com")
 mkdir certs
 mv registry.samos-it.com.crt certs/
 mv registry.samos-it.com.key certs/

@@ -2,6 +2,7 @@ apiVersion: apps/v1
 kind: DaemonSet
 metadata:
   name: cert-customizations
+  namespace: kube-system
   labels:
     app: cert-customizations
 spec:
@@ -13,14 +14,21 @@ spec:
       labels:
         app: cert-customizations
     spec:
+      priorityClassName: system-node-critical
       hostNetwork: true
       hostPID: true
       initContainers:
       - name: cert-customizations
-        image: gcr.io/gsam-123/custom-cert
+        image: marketplace.gcr.io/google/ubuntu2004
+        command: ["/scripts/load-certs.sh"]
         volumeMounts:
-          - name: etc
-            mountPath: "/mnt/etc"
+        - name: etc
+          mountPath: "/mnt/etc"
+        - mountPath: /registry
+          name: registry-cert
+          readOnly: true
+        - mountPath: /scripts
+          name: scripts
         securityContext:
           privileged: true
           capabilities:
@@ -29,6 +37,17 @@ spec:
       - name: etc
         hostPath:
           path: /etc
+      - name: scripts
+        configMap:
+          name: load-certs-script
+          defaultMode: 0744
+      - name: registry-cert
+        secret:
+          secretName: registry-pem
+          defaultMode: 420
       containers:
       - name: pause
         image: gcr.io/google_containers/pause
+      tolerations:
+        - effect: NoSchedule
+          operator: Exists

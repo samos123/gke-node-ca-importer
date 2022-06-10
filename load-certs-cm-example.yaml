@@ -1,0 +1,31 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: load-certs-script
+  namespace: kube-system
+data:
+  load-certs.sh: |
+    #!/usr/bin/env bash
+    set -xe
+
+    export REGISTRY_FQDN=registry.example.com
+
+    echo "Deleting the custom certificate folder and creating it again"
+    rm -rf /mnt/etc/docker/certs.d/$REGISTRY_FQDN
+    mkdir -p /mnt/etc/docker/certs.d/$REGISTRY_FQDN
+
+    echo "Copying the custom certificate"
+    cp /registry/cert.crt /mnt/etc/docker/certs.d/$REGISTRY_FQDN/cert.crt
+    echo "Certificates copied"
+
+    if ! grep -q $REGISTRY_FQDN /mnt/etc/containerd/config.toml; then
+    cat <<EOF >> /mnt/etc/containerd/config.toml
+    [plugins."io.containerd.grpc.v1.cri".registry.mirrors."$REGISTRY_FQDN"]
+      endpoint = ["https://$REGISTRY_FQDN"]
+    [plugins."io.containerd.grpc.v1.cri".registry.configs."$REGISTRY_FQDN".tls]
+      ca_file = "/etc/docker/certs.d/$REGISTRY_FQDN/cert.crt"
+    EOF
+    nsenter --target 1 --mount bash -c "systemctl is-active --quiet containerd && echo 'Restarting containerd' && systemctl restart containerd"
+    fi
+    
+
