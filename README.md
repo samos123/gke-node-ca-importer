@@ -1,95 +1,33 @@
 # GKE self-signed docker registry: Node CA importer
-This repo provides helper func
 Let's assume your company has a private CA that's not trusted by default.
 All internal services such as on-prem docker registry have their certs signed
 by this private CA. This would cause GKE to prevent pulling from the on-prem
 registry since it's not trusted. In this guide we assume the private CA is
 stored in a file called `myCA.pem`.
 
-The solution is to import the CA into the system bundle and restart docker.
-However on GKE, COS is used which makes this harder. The following steps
-are needed on GKE:
-1. Create a docker image that that has `myCA.pem`, copies the myCA.pem 
-   into /mnt/etc/ssl/certs/, runs `update-ca-certificates` and restart
-   docker daemon.
-2. Create a daemonset that runs this docker image on every node and mount
-   the host /etc directory to the containers /mnt/etc directory
 
-### 1. Creating the CA inserter docker image
+## Using the setup script
 
-The corresponding Dockerfile is seen here:
-```dockerfile
-FROM ubuntu
-COPY myCA.pem /myCA.pem
-COPY insert-ca.sh /usr/sbin/
-CMD insert-ca.sh
+You can use the helper script to create configmap, secret and DaemonSet:
+```sh
+./setup.sh registry.samos-it.com myCA.pem
+```
+In this case the private CA file `myCA.pem` located in your current directora
+will be used for the secret.
+
+You should now have the following newly generated files:
+```sh
+# contains the configmap which has the script
+load-certs-cm.yaml
+# contains the contents of myCA.pem
+registry-pem-secret.yaml
+# the DS that runs the script to load the CA is run on each node
+daemonset.yaml
 ```
 
-This is the script `insert-ca.sh` that will be used in the Docker image:
-```bash
-#!/bin/bash
+The DaemonSet should work for both Docker and Containerd
 
-cp /myCA.pem /mnt/etc/ssl/certs
-
-nsenter --target 1 --mount update-ca-certificates
-
-nsenter --target 1 --mount bash -c "systemctl is-active --quiet docker && systemctl restart docker"
-nsenter --target 1 --mount bash -c "systemctl is-active --quiet containerd && systemctl restart containerd"
-```
-Now build and push the image to GCR:
-```
-docker build -t gcr.io/$PROJECT_ID/custom-cert
-docker push gcr.io/$PROJECT_ID/custom-cert
-```
-
-### 2. Deploy daemonset to insert CA on GKE nodes
-Now that we've the insert CA docker image built we can run it on each node
-using a DaemonSet. This will ensure that we add more nodes that the same
-customization is applied.
-
-Use the following DaemonSet `daemonset.yaml` to apply the insert CA container on all nodes:
-```
-apiVersion: apps/v1
-kind: DaemonSet
-metadata:
-  name: cert-customizations
-  labels:
-    app: cert-customizations
-spec:
-  selector:
-    matchLabels:
-      app: cert-customizations
-  template:
-    metadata:
-      labels:
-        app: cert-customizations
-    spec:
-      hostNetwork: true
-      hostPID: true
-      initContainers:
-      - name: cert-customizations
-        image: gcr.io/$PROJECT_ID/custom-cert
-        volumeMounts:
-          - name: etc
-            mountPath: "/mnt/etc"
-        securityContext:
-          privileged: true
-          capabilities:
-            add: ["NET_ADMIN"]
-      volumes:
-      - name: etc
-        hostPath:
-          path: /etc
-      containers:
-      - name: pause
-        image: gcr.io/google_containers/pause
-```
-Now apply with `kubectl apply -f daemonset.yaml`.
-
-After the Pod has been run you will notice that you can pull from a self-signed
-registry in GKE.
-
-### 3. (Optional) Creating a root CA and deploying a registry with self-signed cert
+## (Optional) Creating a root CA and deploying a registry with self-signed cert
 You can skip this if you already have an internal registry that is self-signed.
 These were the steps I used to test using a self-signed registry with GKE.
 
