@@ -6,7 +6,7 @@ metadata:
 data:
   load-certs.sh: |
     #!/usr/bin/env bash
-    set -xe
+    set -x
 
     export REGISTRY_FQDN=registry.example.com
 
@@ -17,15 +17,25 @@ data:
     echo "Copying the custom certificate"
     cp /registry/cert.crt /mnt/etc/docker/certs.d/$REGISTRY_FQDN/cert.crt
     echo "Certificates copied"
-
     if ! grep -q $REGISTRY_FQDN /mnt/etc/containerd/config.toml; then
-    cat <<EOF >> /mnt/etc/containerd/config.toml
+        containerd_version=$(nsenter --target 1 --mount bash -c "containerd --version | awk '{ print substr(\$3,0,4) }'")
+        if [ "$containerd_version" = "1.3." ] || [ "$containerd_version" = "1.4." ]; then
+            cat <<EOF >> /mnt/etc/containerd/config.toml
+    [plugins.cri.registry.configs."$REGISTRY_FQDN"]
+      endpoint = ["https://$REGISTRY_FQDN"]
+    [plugins.cri.registry.configs."$REGISTRY_FQDN".tls]
+      ca_file = "/etc/docker/certs.d/$REGISTRY_FQDN/cert.crt"
+    EOF
+        else
+            # Correct config for containerd 1.5 and above
+            cat <<EOF >> /mnt/etc/containerd/config.toml
     [plugins."io.containerd.grpc.v1.cri".registry.mirrors."$REGISTRY_FQDN"]
       endpoint = ["https://$REGISTRY_FQDN"]
     [plugins."io.containerd.grpc.v1.cri".registry.configs."$REGISTRY_FQDN".tls]
       ca_file = "/etc/docker/certs.d/$REGISTRY_FQDN/cert.crt"
     EOF
-    nsenter --target 1 --mount bash -c "systemctl is-active --quiet containerd && echo 'Restarting containerd' && systemctl restart containerd"
+        fi
+        nsenter --target 1 --mount bash -c "systemctl is-active --quiet containerd && echo 'Restarting containerd' && systemctl restart containerd"
     fi
     
 
